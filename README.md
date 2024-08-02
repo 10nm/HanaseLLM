@@ -4,14 +4,8 @@
 Discord上でのLLMとの会話(通話)  
 全システムローカル動作可
 
-### Scrapbox
-https://scrapbox.io/NLP-irony/%E7%A0%94%E7%A9%B6%E5%A4%96_LLM%E3%81%A8%E8%A9%B1%E3%81%97%E3%81%9F%E3%81%84_(Discord)(Python,_JS)
-
 ### 構成図  
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="pics/hanasellm-dark.png">
-<source media="(prefers-color-scheme: light)" srcset="pics/hanasellm-white.png">
-</picture>
+[構成図](./pics/hanasellm-white.png)
 
 ## 使い方
 
@@ -43,6 +37,9 @@ node index.js
 プッシュトゥトークを設定する(誤検知対策)
 
 ## 改善したい
+- [ ] ~~発言者の名前がすべて!join実行者の名前になっている~~
+- [ ] ~~複数人の場合は人別にhistoryを分ける~~
+- [ ] 一括起動のスクリプト？docker化？
 - [ ]  レスポンス改善(wavエンコードを経由しないリアルタイムな手法？)
 - [ ] 文字起こしのリソース削減、リアルタイム化
 - [ ] llmの設定、サーバーを設定ファイルまたはdiscordから変更できるようにする

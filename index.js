@@ -22,7 +22,8 @@ const context = new audioCtx()
 let recognizerFreed = false;
 let modelFreed = false;
 
-var history = [];
+let userlist = [];
+let userHistory = {};
 
 const client = new Client({ 
     intents: [
@@ -32,6 +33,20 @@ const client = new Client({
         GatewayIntentBits.GuildVoiceStates
     ] 
 });
+
+function getHistory(userId) {
+    if (userlist.includes(userId)) {
+    } else {
+        userlist.push(userId);
+    }
+
+    if (userHistory[userId]) {
+        return userHistory[userId];
+    } else {
+        userHistory[userId] = [];
+        return userHistory[userId];
+    }
+}
 
 async function transcribeAudio(filePath) {
     try {
@@ -64,7 +79,9 @@ async function transcribeAudio(filePath) {
     }
 }
 
-
+let Flag=false;
+let llmflag = false;
+let toggleF = false;
 
 client.once('ready', () => {
 	console.log('Bot is online!');
@@ -72,16 +89,27 @@ client.once('ready', () => {
 
 client.on('messageCreate', async message => {
 
+    if (message.content === '!stop') {
+        toggleF = true;
+        message.channel.send('Stopped');
+    }
+
+    if (message.content === '!start') {
+        toggleF = false;
+        message.channel.send('Started');
+    }
+
     if (message.content === '!history') {
-        if (history.length === 0) {
-            console.log(history);
-            return;
-        } else {
-            console.log(history);
+        await message.channel.send(`${userlist}`);
+        for (let userId of userlist) {
+            var name = message.guild.members.cache.get(userId).user.username;
+            await message.channel.send(name);
+            var history = getHistory(userId);
+            await message.channel.send(JSON.stringify(history));
         }
     }
     if (message.content === '!clear') {
-        history = [];
+        userHistory = {};
         message.channel.send('History cleared');
     }
 
@@ -102,7 +130,11 @@ client.on('messageCreate', async message => {
             const receiver = connection.receiver;
 
             receiver.speaking.on('start', userId => {
-                
+                if (toggleF) {
+                    return;
+                }
+                if (Flag) return;
+                Flag=true;
                 console.log(`Listening to ${userId}`);
                 const audioStream = receiver.subscribe(userId, {
                     end: {
@@ -120,11 +152,14 @@ client.on('messageCreate', async message => {
 
                 let startTime = Date.now();
                 pcmStream.on('end', () => {
+                    Flag=false;
                     const endTime=Date.now();
                     const duration = (endTime-startTime-1000)/1000;
                     console.log(`Recording duration: ${duration} seconds`);
                     
-                    if (duration > 1.0){
+                    if (duration > 0.7){
+                        if (llmflag) return;
+                        llmflag = true;
                         const pcmBuffer = Buffer.concat(pcmChunks);
                         const wavBuffer = wavConverter.encodeWav(pcmBuffer, {
                             numChannels: 2,
@@ -143,15 +178,19 @@ client.on('messageCreate', async message => {
                                     console.log('No speech detected');
                                     return;
                                 }
+                                const user = message.guild.members.cache.get(userId);
+                                const userName = user.user.username;
+                                llmflag = false;
                                 console.log(response.data);
                                 const transcription = response.data.text;
                                 console.log(transcription);
-                                message.channel.send(`Recognized: ${message.author.username}: ${transcription}`);
-
-                                llm(message.author.username,transcription,history).then(responsellm => {
+                                message.channel.send(`Recognized: ${userName}: ${transcription}`);
+                                var userhistory = getHistory(userId);
+                                
+                                llm(userName,transcription,userhistory).then(responsellm => {
                                     if (responsellm) {
                                         console.log(responsellm);
-                                        history.push({ role: "Assistant", content: responsellm });
+                                        userhistory.push({ role: "Assistant", content: responsellm });
                                         message.channel.send(`Assistant: ${responsellm}`);
                                         voicevox(responsellm).then(async (audioBase64) => {
                                             const buf = Buffer.from(audioBase64, 'base64');
@@ -162,7 +201,8 @@ client.on('messageCreate', async message => {
                                         });
 
                                     } else {
-                                        console.error('Error transcribing audio:');
+                                        console.error('Error response llm:');
+                                        message.channel.send('Error response llm');
                                     }
                                 });
 
