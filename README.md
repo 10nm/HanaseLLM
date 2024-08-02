@@ -4,8 +4,13 @@
 Discord上でのLLMとの会話(通話)  
 全システムローカル動作可
 
+
 ### 構成図  
-[構成図](./pics/hanasellm-white.png)
+<picture>
+  <source srcset="./pics/hanasellm-dark.png" media="(prefers-color-scheme: dark)">
+  <source srcset="./pics/hanasellm-light.png" media="(prefers-color-scheme: light)">
+  <img src="./pics/hanasellm-light.png" alt="構成図">
+</picture>
 
 ## 使い方
 
