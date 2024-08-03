@@ -82,6 +82,7 @@ async function transcribeAudio(filePath) {
 let Flag=false;
 let llmflag = false;
 let toggleF = false;
+let log = false;
 
 client.once('ready', () => {
 	console.log('Bot is online!');
@@ -96,7 +97,19 @@ client.on('messageCreate', async message => {
 
     if (message.content === '!start') {
         toggleF = false;
+        let Flag=false;
+        let llmflag = false;
         message.channel.send('Started');
+    }
+
+    if (message.content === '!log') {
+        if (log) {
+            log = false;
+            message.channel.send('Log OFF')
+        } else {
+            log = true;
+            message.channel.send('Log ON')
+        }
     }
 
     if (message.content === '!history') {
@@ -108,6 +121,7 @@ client.on('messageCreate', async message => {
             await message.channel.send(JSON.stringify(history));
         }
     }
+
     if (message.content === '!clear') {
         userHistory = {};
         message.channel.send('History cleared');
@@ -120,8 +134,6 @@ client.on('messageCreate', async message => {
                 guildId: message.guild.id,
                 adapterCreator: message.guild.voiceAdapterCreator,
             });
-            
-
             
             connection.on(VoiceConnectionStatus.Ready, () => {
                 console.log('The bot has connected to the channel!');
@@ -184,14 +196,21 @@ client.on('messageCreate', async message => {
                                 console.log(response.data);
                                 const transcription = response.data.text;
                                 console.log(transcription);
-                                message.channel.send(`Recognized: ${userName}: ${transcription}`);
+
+                                if (log) { 
+                                    message.channel.send(`Recognized: ${userName}: ${transcription}`);
+                                }
+
                                 var userhistory = getHistory(userId);
                                 
                                 llm(userName,transcription,userhistory).then(responsellm => {
                                     if (responsellm) {
                                         console.log(responsellm);
                                         userhistory.push({ role: "Assistant", content: responsellm });
-                                        message.channel.send(`Assistant: ${responsellm}`);
+
+                                        if (log) {
+                                            message.channel.send(`Assistant: ${responsellm}`);
+                                        }
                                         voicevox(responsellm).then(async (audioBase64) => {
                                             const buf = Buffer.from(audioBase64, 'base64');
                                             fs.writeFileSync('output.wav', buf);
