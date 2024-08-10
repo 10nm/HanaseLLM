@@ -169,7 +169,7 @@ client.on('messageCreate', async message => {
                     const duration = (endTime-startTime-1000)/1000;
                     console.log(`Recording duration: ${duration} seconds`);
                     
-                    if (duration > 0.7){
+                    if (duration > 0.5){
                         if (llmflag) return;
                         llmflag = true;
                         const pcmBuffer = Buffer.concat(pcmChunks);
@@ -206,7 +206,7 @@ client.on('messageCreate', async message => {
                                 llm(userName,transcription,userhistory).then(responsellm => {
                                     if (responsellm) {
                                         console.log(responsellm);
-                                        userhistory.push({ role: "Assistant", content: responsellm });
+                                        userhistory.push({ role: "assistant", content: responsellm });
 
                                         if (log) {
                                             message.channel.send(`Assistant: ${responsellm}`);
@@ -332,14 +332,11 @@ async function llm(username,userMessage,history) {
     };
 
     let data = {
-        mode: "chat",
-        character: "Assistant",
-        messages: history,
-        max_tokens: 100,
-        auto_max_new_tokens: false,
-        temperature: 1.0,
-        top_p: 0.9,
-        seed: -1,
+        "mode": "chat",
+        "character": "Assistant",
+        "messages": history,
+        "max_tokens": 50,
+        "preset": "simple-1",
         stop: ["\n", "User", "Assistant"]
     };
 
@@ -380,7 +377,7 @@ async function playAudio(connection, filePath){
     player.play(resource);
     connection.subscribe(player);
     player.on(AudioPlayerStatus.Idle, () => {
-        console.log('audio play!!')
+        console.log('Voice played')
     });
 }
 
