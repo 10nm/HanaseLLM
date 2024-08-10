@@ -221,7 +221,6 @@ client.on('messageCreate', async message => {
 
                                     } else {
                                         console.error('Error response llm:');
-                                        message.channel.send('Error response llm');
                                     }
                                 });
 
