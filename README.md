@@ -9,7 +9,7 @@ Discord上でのLLMとの会話(通話)
 <picture>
   <source srcset="./pics/hanasellm-dark.png" media="(prefers-color-scheme: dark)">
   <source srcset="./pics/hanasellm-light.png" media="(prefers-color-scheme: light)">
-  <img src="./pics/hanasellm-light.png" alt="構成図">
+  <img src="./pics/hanasellm-white.png" alt="構成図">
 </picture>
 
 ## 使い方
