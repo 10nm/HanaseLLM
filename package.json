@@ -20,6 +20,7 @@
     "node-pre-gyp": "^0.17.0",
     "opusscript": "^0.0.8",
     "rebuild": "^0.1.2",
+    "tsx": "^4.17.0",
     "vosk": "^0.3.39",
     "wav": "^1.0.2",
     "wav-converter": "^1.0.0",
