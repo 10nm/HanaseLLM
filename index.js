@@ -17,6 +17,16 @@ const sampleRate = 16000;
 const audioCtx = require('web-audio-api').AudioContext
 const context = new audioCtx()
 
+let Flag=false;
+let llmFlag = false;
+let toggleF = false;
+let log = false;
+let max_token = 150;
+let duration = 0.5;
+let silence = 1000;
+let speaker = 4;
+
+
 const doc = `
 ## Discordコマンド  
 
@@ -31,6 +41,7 @@ const doc = `
 - **!max_token {token(int)}** 指定したトークン内で出力させる(まれに見切れる)   
 - **!silence {time(float)ミリ秒}** 指定したミリ秒の沈黙があった場合に音声認識を終了する
 - **!setspeaker {speaker(int)}** 指定したスピーカーで音声合成を行う
+- **!settings** 現在の設定を表示
 `;
 
 
@@ -96,14 +107,7 @@ async function transcribeAudio(filePath) {
     }
 }
 
-let Flag=false;
-let llmFlag = false;
-let toggleF = false;
-let log = false;
-let max_token = 150;
-let duration = 0.5;
-let silence = 1000;
-let speaker = 4;
+
 
 client.once('ready', () => {
 	console.log('Bot is online!');
@@ -141,6 +145,17 @@ client.on('messageCreate', async message => {
             var history = getHistory(userId);
             await message.channel.send(JSON.stringify(history));
         }
+    }
+
+    if (message.content === '!settings') {
+        let settings = `
+        ## 設定
+        **duration:** ${duration}s
+        **silence:** ${silence}ms
+        **max_token:** ${max_token}tokens
+        **speaker:** ${speaker}
+        `;
+        message.channel.send(settings);
     }
 
     if (message.content === '!help') {
@@ -437,7 +452,7 @@ async function voicevox(llmMessage) {
     const msg = llmMessage;
 
 
-    const responseQuery = await axios.post(`http://127.0.0.1:50021/audio_query?speaker=${speaker}&text=${msg}`)
+    const responseQuery = await axios.post(`http://127.0.0.1:50021/audio_query?speaker=${speaker}&text="${msg}"`)
 
     const query = responseQuery.data
 

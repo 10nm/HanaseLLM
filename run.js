@@ -56,9 +56,9 @@ function runPythonScript(){
 }
 
 function runDockerContainer(){
-    exec("sudo docker run --detach --rm --gpus all -p '127.0.0.1:50021:50021' voicevox/voicevox_engine:nvidia-ubuntu20.04-latest --name voicevox_gpu", (error, stdout, stderr) => {
+    exec("sudo docker run --name voicevox_gpu --detach --gpus all -p '127.0.0.1:50021:50021' voicevox/voicevox_engine:nvidia-ubuntu20.04-latest ", (error, stdout, stderr) => {
         if (error) {
-            if (stderr.includes("port")){
+            if (stderr.includes("Conflict")){
                 console.log("Container already running");
                 exec("sudo docker rm -f voicevox_gpu", (rmError, rmStdout, rmStderr) => {
                     if (rmError) {

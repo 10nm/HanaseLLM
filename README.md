@@ -69,6 +69,7 @@ node index.js
 - **!max_token {token(int)}** 指定したトークン内で出力させる(まれに見切れる)   
 - **!silence {time(float)ミリ秒}** 指定したミリ秒の沈黙があった場合に音声認識を終了する
 - **!setspeaker {speaker(int)}** 指定したスピーカーで音声合成を行う
+- **!settings** 現在の設定を表示
 
 ### 注意
 プッシュトゥトークを設定する(誤検知対策)
