@@ -2,8 +2,6 @@ const { exec, spawn } = require("child_process");
 
 const load_model = "Llama-3-ELYZA-JP-8B-q4_k_m.gguf?download=true";
 
-
-
 function runDiscordBot() {
     const discordBotExecutable = "node";
     const args = ["index.js"];
@@ -58,11 +56,11 @@ function runPythonScript(){
 }
 
 function runDockerContainer(){
-    exec("sudo docker run -d --name voicevox_engine_container -p 50021:50021 voicevox/voicevox_engine:cpu-ubuntu20.04-latest", (error, stdout, stderr) => {
+    exec("sudo docker run --detach --rm --gpus all -p '127.0.0.1:50021:50021' voicevox/voicevox_engine:nvidia-ubuntu20.04-latest --name voicevox_gpu", (error, stdout, stderr) => {
         if (error) {
-            if (stderr.includes("Conflict")){
+            if (stderr.includes("port")){
                 console.log("Container already running");
-                exec("sudo docker rm -f voicevox_engine_container", (rmError, rmStdout, rmStderr) => {
+                exec("sudo docker rm -f voicevox_gpu", (rmError, rmStdout, rmStderr) => {
                     if (rmError) {
                         console.error(`exec error: ${rmError}`);
                         return;

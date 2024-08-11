@@ -68,15 +68,35 @@ node index.js
 - **!duration {time(float)秒}** 指定した秒数以上の音声のみを認識させる  
 - **!max_token {token(int)}** 指定したトークン内で出力させる(まれに見切れる)   
 - **!silence {time(float)ミリ秒}** 指定したミリ秒の沈黙があった場合に音声認識を終了する
+- **!setspeaker {speaker(int)}** 指定したスピーカーで音声合成を行う
 
 ### 注意
 プッシュトゥトークを設定する(誤検知対策)
+
+### 細かい仕様
+**Flag**
+- **Flag** : 連続での音声入力 -> 音声認識 を防止する
+- **llmFlag** : 連続でのllm推論を防止
+- **toggleF** : 手動での認識/推論停止用
+
+すべてのFlagは !refresh で解除される
+
+Flagのタイミング
+Flag true : speaking on
+Flag false : speaking end
+
+llmFlag true : speakingのdurationが指定秒以上だった場合
+llmFlag false : 音声認識の結果が空であった場合, llmからレスポンスが適切にかえってきた場合,llmがエラーを返した場合,音声認識にエラーが生じた場合
+
+**historyの管理**
+発言者(辞書管理)別にhistoryのlistを作成、llmに送信している
+
 
 ## 改善したい
 - [ ] ~~発言者の名前がすべて!join実行者の名前になっている~~
 - [ ] ~~複数人の場合は人別にhistoryを分ける~~
 - [ ] ~~一括起動のスクリプト？docker化？~~
 - [ ] text-gen-webuiもdocker化
-- [ ] llmがhistoryすべてに対して応答しようとする現象
+- [ ] ~~llmがhistoryすべてに対して応答しようとする現象~~ チューニングで改善
 - [ ] レスポンス改善(wavエンコードを経由しないリアルタイムな手法？)
-- [ ] llmの設定、サーバーを設定ファイルまたはdiscordから変更できるようにする
+- [ ] ~~llmの設定、サーバーを設定ファイルまたはdiscordから変更できるようにする~~ discordコマンドで設定できるようにした.

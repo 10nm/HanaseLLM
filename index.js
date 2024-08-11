@@ -30,6 +30,7 @@ const doc = `
 - **!duration {time(float)秒}** 指定した秒数以上の音声のみを認識させる  
 - **!max_token {token(int)}** 指定したトークン内で出力させる(まれに見切れる)   
 - **!silence {time(float)ミリ秒}** 指定したミリ秒の沈黙があった場合に音声認識を終了する
+- **!setspeaker {speaker(int)}** 指定したスピーカーで音声合成を行う
 `;
 
 
@@ -99,9 +100,10 @@ let Flag=false;
 let llmFlag = false;
 let toggleF = false;
 let log = false;
-let max_token = 50;
+let max_token = 150;
 let duration = 0.5;
 let silence = 1000;
+let speaker = 4;
 
 client.once('ready', () => {
 	console.log('Bot is online!');
@@ -157,6 +159,16 @@ client.on('messageCreate', async message => {
             message.channel.send(`Sample duration to ${duration} seconds`);
         } else {
             message.channel.send('Invalid arguments. Usage: !duration <duration>');
+        }
+    }
+
+    if (message.content.startsWith('!setspeaker')) {
+        const args = message.content.split(' ');
+        if (args.length === 2 && !isNaN(args[1])) {
+            speaker = parseInt(args[1]);
+            message.channel.send(`Speaker to ${speaker}`);
+        } else {
+            message.channel.send('Invalid arguments. Usage: !setspeaker <speaker>');
         }
     }
 
@@ -245,6 +257,7 @@ client.on('messageCreate', async message => {
                             if (response) {
                                 if (response.data.text === '') {
                                     console.log('No speech detected');
+                                    llmFlag = false;
                                     return;
                                 }
                                 const user = message.guild.members.cache.get(userId);
@@ -419,14 +432,16 @@ async function llm(username,userMessage,history) {
 //https://zenn.dev/hathle/books/next-voicevox-book/viewer/05_playaudio
 
 
+
 async function voicevox(llmMessage) {
     const msg = llmMessage;
 
-    const responseQuery = await axios.post(`http://127.0.0.1:50021/audio_query?speaker=4&text=${msg}`)
+
+    const responseQuery = await axios.post(`http://127.0.0.1:50021/audio_query?speaker=${speaker}&text=${msg}`)
 
     const query = responseQuery.data
 
-    const responseSynthesis = await axios.post(`http://127.0.0.1:50021/synthesis?speaker=4`, query, { responseType: 'arraybuffer'})
+    const responseSynthesis = await axios.post(`http://127.0.0.1:50021/synthesis?speaker=${speaker}`, query, { responseType: 'arraybuffer'})
 
     const base64Data = Buffer.from(responseSynthesis.data, 'binary').toString('base64')
 
