@@ -17,6 +17,21 @@ const sampleRate = 16000;
 const audioCtx = require('web-audio-api').AudioContext
 const context = new audioCtx()
 
+const doc = `
+## Discordコマンド  
+
+- **!join** ボイスチャンネルに参加  
+- **!leave** ボイスチャンネルから退出  
+- **!stop** 音声認識を停止
+- **!refresh** 音声認識を再開. Flag(認識・生成のパンクを防ぐ機構)をリセットする。 突然認識されなくなった場合に使用
+- **!clear** 会話履歴の削除  
+- **!history** サーバ側に会話履歴表示  
+- **!log** Discord上に会話ログを出力するか(on/off トグル)  
+- **!duration {time(float)秒}** 指定した秒数以上の音声のみを認識させる  
+- **!max_token {token(int)}** 指定したトークン内で出力させる(まれに見切れる)   
+- **!silence {time(float)ミリ秒}** 指定したミリ秒の沈黙があった場合に音声認識を終了する
+`;
+
 
 // error handling
 let recognizerFreed = false;
@@ -24,6 +39,7 @@ let modelFreed = false;
 
 let userlist = [];
 let userHistory = {};
+
 
 const client = new Client({ 
     intents: [
@@ -80,9 +96,12 @@ async function transcribeAudio(filePath) {
 }
 
 let Flag=false;
-let llmflag = false;
+let llmFlag = false;
 let toggleF = false;
 let log = false;
+let max_token = 50;
+let duration = 0.5;
+let silence = 1000;
 
 client.once('ready', () => {
 	console.log('Bot is online!');
@@ -95,11 +114,11 @@ client.on('messageCreate', async message => {
         message.channel.send('Stopped');
     }
 
-    if (message.content === '!start') {
+    if (message.content === '!refresh') {
         toggleF = false;
-        let Flag=false;
-        let llmflag = false;
-        message.channel.send('Started');
+        Flag=false;
+        llmFlag = false;
+        message.channel.send('Freshed');
     }
 
     if (message.content === '!log') {
@@ -122,9 +141,43 @@ client.on('messageCreate', async message => {
         }
     }
 
+    if (message.content === '!help') {
+        message.channel.send(doc);
+    }
+
     if (message.content === '!clear') {
         userHistory = {};
         message.channel.send('History cleared');
+    }
+
+    if (message.content.startsWith('!duration')) {
+        const args = message.content.split(' ');
+        if (args.length === 2 && !isNaN(args[1])) {
+            duration = parseFloat(args[1]);
+            message.channel.send(`Sample duration to ${duration} seconds`);
+        } else {
+            message.channel.send('Invalid arguments. Usage: !duration <duration>');
+        }
+    }
+
+    if (message.content.startsWith('!silence')) {
+        const args = message.content.split(' ');
+        if (args.length === 2 && !isNaN(args[1])) {
+            silence = parseFloat(args[1]);
+            message.channel.send(`Max silence duration to ${silence} Milliseconds`);
+        } else {
+            message.channel.send('Invalid arguments. Usage: !silence <duration>');
+        }
+    }
+
+    if (message.content.startsWith('!max_token')) {
+        const args = message.content.split(' ');
+        if (args.length === 2 && !isNaN(args[1])) {
+            max_token = parseInt(args[1]);
+            message.channel.send(`Max token to ${max_token}tokens`);
+        } else {
+            message.channel.send('Invalid arguments. Usage: !max_token <max_token>');
+        }
     }
 
     if (message.content === '!join') {
@@ -142,16 +195,17 @@ client.on('messageCreate', async message => {
             const receiver = connection.receiver;
 
             receiver.speaking.on('start', userId => {
-                if (toggleF) {
-                    return;
-                }
-                if (Flag) return;
+                if (toggleF) return;
+                if (Flag) {
+                    console.log('Duplication!!!');
+                    return
+                };
                 Flag=true;
                 console.log(`Listening to ${userId}`);
                 const audioStream = receiver.subscribe(userId, {
                     end: {
                         behavior: EndBehaviorType.AfterSilence,
-                        duration: 1000
+                        duration: silence
                     }
                 });
 
@@ -166,12 +220,15 @@ client.on('messageCreate', async message => {
                 pcmStream.on('end', () => {
                     Flag=false;
                     const endTime=Date.now();
-                    const duration = (endTime-startTime-1000)/1000;
-                    console.log(`Recording duration: ${duration} seconds`);
+                    const durationnow = (endTime-startTime-1000)/1000;
+                    console.log(`Recording duration: ${durationnow} seconds`);
                     
-                    if (duration > 0.5){
-                        if (llmflag) return;
-                        llmflag = true;
+                    if (durationnow > duration){
+                        if (llmFlag) {
+                            console.log('Assistant is busy(llmFlag)');
+                            return;
+                        };
+                        llmFlag = true;
                         const pcmBuffer = Buffer.concat(pcmChunks);
                         const wavBuffer = wavConverter.encodeWav(pcmBuffer, {
                             numChannels: 2,
@@ -192,7 +249,7 @@ client.on('messageCreate', async message => {
                                 }
                                 const user = message.guild.members.cache.get(userId);
                                 const userName = user.user.username;
-                                llmflag = false;
+                                
                                 console.log(response.data);
                                 const transcription = response.data.text;
                                 console.log(transcription);
@@ -205,6 +262,7 @@ client.on('messageCreate', async message => {
                                 
                                 llm(userName,transcription,userhistory).then(responsellm => {
                                     if (responsellm) {
+                                        llmFlag = false;
                                         console.log(responsellm);
                                         userhistory.push({ role: "assistant", content: responsellm });
 
@@ -221,11 +279,13 @@ client.on('messageCreate', async message => {
 
                                     } else {
                                         console.error('Error response llm:');
+                                        llmFlag = false;
                                     }
                                 });
 
                             } else {
                                 console.error('Error transcribing audio');
+                                llmFlag = false;
                             }
 
 
@@ -324,6 +384,8 @@ client.on('messageCreate', async message => {
     }
 });
 
+
+
 async function llm(username,userMessage,history) {
     history.push({ role: "user", content: userMessage });
     const url = "http://127.0.0.1:5001/v1/chat/completions";
@@ -335,7 +397,7 @@ async function llm(username,userMessage,history) {
         "mode": "chat",
         "character": "Assistant",
         "messages": history,
-        "max_tokens": 50,
+        "max_tokens": max_token,
         "preset": "simple-1",
         stop: ["\n", "User", "Assistant"]
     };

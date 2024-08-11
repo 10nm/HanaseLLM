@@ -1,5 +1,9 @@
 const { exec, spawn } = require("child_process");
 
+const load_model = "Llama-3-ELYZA-JP-8B-q4_k_m.gguf?download=true";
+
+
+
 function runDiscordBot() {
     const discordBotExecutable = "node";
     const args = ["index.js"];
@@ -18,7 +22,7 @@ function runDiscordBot() {
 
 function runllamagui() {
     const serverExecutable = "./wsl.sh";
-    const args = ["--api", "--api-port", "5001"];
+    const args = ["--api", "--api-port", "5001", "--model", load_model];
     const options = { cwd: "../../text-generation-webui" };
     const process = spawn(serverExecutable, args, options);
 
