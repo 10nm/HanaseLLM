@@ -1,6 +1,8 @@
 const { exec, spawn } = require("child_process");
 
-const load_model = "Llama-3-ELYZA-JP-8B-q4_k_m.gguf?download=true";
+const defaultModel = "Llama-3-ELYZA-JP-8B-q4_k_m.gguf?download=true";
+let llamaProcess = null;
+
 
 function runDiscordBot() {
     const discordBotExecutable = "node";
@@ -18,22 +20,31 @@ function runDiscordBot() {
     })
 }
 
-function runllamagui() {
+function runllama(model) {
     const serverExecutable = "./wsl.sh";
-    const args = ["--api", "--api-port", "5001", "--model", load_model];
+    const args = ["--api", "--api-port", "5001", "--model", model];
     const options = { cwd: "../../text-generation-webui" };
-    const process = spawn(serverExecutable, args, options);
+    const llamaProcess = spawn(serverExecutable, args, options);
 
-    process.stdout.on("data", (data)=>{
+    llamaProcess.stdout.on("data", (data)=>{
         console.log(`L:${data}`);
     });
-    process.stderr.on("data", (data)=>{
+    llamaProcess.stderr.on("data", (data)=>{
         console.error(`Llama-stderr:${data}`);
     });
-    process.on("error", (err) => {
+    llamaProcess.on("error", (err) => {
         console.error(`Llama-err: ${err}`);
     })
-    runDiscordBot();
+    // runDiscordBot();
+}
+
+function stopllama(){
+    if (llamaProcess){
+        llamaProcess.kill();
+        llamaProcess = null;
+    } else {
+        console.log("No Llama process is running");
+    }
 }
 
 function runPythonScript(){
@@ -52,7 +63,7 @@ function runPythonScript(){
         process.on("close", (code) => {
             console.log(`child process exited with code ${code}`);
         });
-        runllamagui();
+        // runllama();
 }
 
 function runDockerContainer(){
@@ -77,8 +88,19 @@ function runDockerContainer(){
             return;
         }
         console.log(`V: \n ${stdout}`);
-        runPythonScript();
+        // runPythonScript();
     });
 }
 
-runDockerContainer();
+
+module.exports = { runllama, stopllama };
+
+function runALL(){
+    runDockerContainer();
+    runPythonScript();
+    runllama(defaultModel);
+    runDiscordBot();
+}
+
+runALL();
+// runDockerContainer();

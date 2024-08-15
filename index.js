@@ -9,9 +9,11 @@ const axios = require('axios');
 const FormData = require('form-data');
 const TOKEN = process.env.TOKEN;
 const fetch = require('node-fetch');
-
+// const {runllama, stopllama} = require('./run.js');
 
 const sampleRate = 16000;
+
+const VoiceFilePATH = `voice.wav`;
 
 
 const audioCtx = require('web-audio-api').AudioContext
@@ -52,6 +54,7 @@ let modelFreed = false;
 let userlist = [];
 let userHistory = {};
 
+let Message_Channel = null;
 
 const client = new Client({ 
     intents: [
@@ -76,6 +79,71 @@ function getHistory(userId) {
     }
 }
 
+function log_sender(message) {
+    console.log(message);
+    if (log) {
+        Message_Channel.send(message);
+    }
+}
+
+async function playAudio(connection, filePath){
+    const player = createAudioPlayer();
+    const resource = createAudioResource(filePath);
+    player.play(resource);
+    connection.subscribe(player);
+    player.on(AudioPlayerStatus.Idle, () => {
+        console.log('Voice played')
+    });
+}
+
+
+function handleStreaming(connection, message) {
+    const receiver = connection.receiver;
+
+    receiver.speaking.on('start', userId => {
+        console.log(`Listening to ${userId}`);
+        const audioStream = receiver.subscribe(userId, {
+            end: {
+                behavior: EndBehaviorType.AfterSilence,
+                duration: silence
+            }
+        });
+
+        const pcmStream = audioStream.pipe(new prism.opus.Decoder({ rate: sampleRate, channels: 2, frameSize: 960 }));
+
+        const pcmChunks = [];
+        pcmStream.on('data', chunk => {
+            pcmChunks.push(chunk);
+        });
+
+        let startTime = Date.now();
+        pcmStream.on('end', () => {
+            Flag = false;
+            const endTime = Date.now();
+            const session_time = (endTime - startTime - 1000) / 1000;
+            console.log(`Recording duration: ${session_time} seconds`);
+
+            if (session_time > duration) {
+                const pcmBuffer = Buffer.concat(pcmChunks);
+                const wavBuffer = wavConverter.encodeWav(pcmBuffer, {
+                    numChannels: 2,
+                    sampleRate: sampleRate,
+                    byteRate: 16
+                });
+
+                fs.writeFileSync(VoiceFilePATH, wavBuffer);
+                console.log(`Saved recording for ${userId}`);
+
+                // start transcribe -> llm -> VoiceVox
+                main(message, userId);
+            } else {
+                console.log(`Recording for ${userId} was too short`);
+            }
+        });
+    });
+}
+
+
 async function transcribeAudio(filePath) {
     try {
         const audioData = fs.readFileSync(filePath);
@@ -90,7 +158,7 @@ async function transcribeAudio(filePath) {
             }
         });
 
-        return response; // Return the response data
+        return response.data.text; // Return the response data
     } catch (error) {
         if (error.response) {
             // サーバーがステータスコード400を返した場合
@@ -107,6 +175,35 @@ async function transcribeAudio(filePath) {
     }
 }
 
+async function main(msg, userId){
+    console.log(userId)
+    const user = msg.guild.members.cache.get(userId);
+    const userName = user.user.username;
+    const userHistory = getHistory(userId);
+
+    const connection = getVoiceConnection(msg.guild.id);
+
+    // ユーザーの発話を音声認識
+    const userMessage = await transcribeAudio(VoiceFilePATH);
+    if (!check_response(userMessage)) { return; }
+    userHistory.push({ role: "user", content: userMessage });
+    log_sender(`Recognized: ${userName}: ${userMessage}`);
+
+    // ユーザーの発話をもとに応答を生成
+    const responseLLM = await llm(userName, userMessage, userHistory);
+    //debug
+    console.log(responseLLM);
+    if (!check_response(responseLLM)) { return; }
+    userHistory.push({ role: "assistant", content: responseLLM });
+    log_sender(`Assistant: ${responseLLM}`);
+
+    // 応答を音声合成
+    VoiceVox(responseLLM).then(async (audioBase64) => {
+        const buf = Buffer.from(audioBase64, 'base64');
+        fs.writeFileSync('output.wav', buf);
+        playAudio(connection, 'output.wav');
+    });
+}
 
 
 client.once('ready', () => {
@@ -207,6 +304,19 @@ client.on('messageCreate', async message => {
         }
     }
 
+    // ボイスチャンネル退出
+    if (message.content === '!leave') {
+        const connection = getVoiceConnection(message.guild.id);
+        if (connection) {
+            connection.destroy();
+            message.channel.send('Left the voice channel!');
+        } else {
+            message.channel.send('I am not in a voice channel!');
+        }
+    };
+
+
+    // ボイスチャンネル入室
     if (message.content === '!join') {
         if (message.member.voice.channel) {
             const connection = joinVoiceChannel({
@@ -218,106 +328,149 @@ client.on('messageCreate', async message => {
             connection.on(VoiceConnectionStatus.Ready, () => {
                 console.log('The bot has connected to the channel!');
             });
+            message.channel.send('Joined the voice channel!');
 
-            const receiver = connection.receiver;
+            handleStreaming(connection, message);
+        } else {
+            message.channel.send('You need to join a voice channel first!');
+        }
+    }
+});
 
-            receiver.speaking.on('start', userId => {
-                if (toggleF) return;
-                if (Flag) {
-                    console.log('Duplication!!!');
-                    return
-                };
-                Flag=true;
-                console.log(`Listening to ${userId}`);
-                const audioStream = receiver.subscribe(userId, {
-                    end: {
-                        behavior: EndBehaviorType.AfterSilence,
-                        duration: silence
-                    }
-                });
 
-                const pcmStream = audioStream.pipe(new prism.opus.Decoder({ rate: sampleRate, channels: 2, frameSize: 960 }));
+//             const receiver = connection.receiver;
+
+//             // start speaking 
+//             receiver.speaking.on('start', userId => {
+//                 if (toggleF) return;
+//                 if (Flag) {
+//                     console.log('Duplication!!!');
+//                     return
+//                 };
+//                 Flag=true;
+//                 console.log(`Listening to ${userId}`);
+//                 const audioStream = receiver.subscribe(userId, {
+//                     end: {
+//                         behavior: EndBehaviorType.AfterSilence,
+//                         duration: silence
+//                     }
+//                 });
+
+//                 const pcmStream = audioStream.pipe(new prism.opus.Decoder({ rate: sampleRate, channels: 2, frameSize: 960 }));
                 
-                const pcmChunks = []
-                pcmStream.on('data', chunk => {
-                    pcmChunks.push(chunk);
-                });
+//                 const pcmChunks = []
+//                 pcmStream.on('data', chunk => {
+//                     pcmChunks.push(chunk);
+//                 });
 
-                let startTime = Date.now();
-                pcmStream.on('end', () => {
-                    Flag=false;
-                    const endTime=Date.now();
-                    const durationnow = (endTime-startTime-1000)/1000;
-                    console.log(`Recording duration: ${durationnow} seconds`);
+//                 let startTime = Date.now();
+
+
+//                 // stop speaking / 沈黙 $silence ms
+//                 pcmStream.on('end', () => {
+//                     Flag=false;
+//                     const endTime=Date.now();
+//                     const session_time = (endTime-startTime-1000)/1000;
+//                     console.log(`Recording duration: ${session_time} seconds`);
                     
-                    if (durationnow > duration){
-                        if (llmFlag) {
-                            console.log('Assistant is busy(llmFlag)');
-                            return;
-                        };
-                        llmFlag = true;
-                        const pcmBuffer = Buffer.concat(pcmChunks);
-                        const wavBuffer = wavConverter.encodeWav(pcmBuffer, {
-                            numChannels: 2,
-                            sampleRate: sampleRate,
-                            byteRate: 16
-                        });
+//                     if (session_time > duration){
                         
-                        const filePath = `voice.wav`;
-
-                        fs.writeFileSync(filePath, wavBuffer);
-                        console.log(`Saved recording for ${userId}`);
+//                         const pcmBuffer = Buffer.concat(pcmChunks);
+//                         const wavBuffer = wavConverter.encodeWav(pcmBuffer, {
+//                             numChannels: 2,
+//                             sampleRate: sampleRate,
+//                             byteRate: 16
+//                         });
                         
-                        transcribeAudio(filePath).then(response => {
-                            if (response) {
-                                if (response.data.text === '') {
-                                    console.log('No speech detected');
-                                    llmFlag = false;
-                                    return;
-                                }
-                                const user = message.guild.members.cache.get(userId);
-                                const userName = user.user.username;
+//                         fs.writeFileSync(VoiceFilePATH, wavBuffer);
+//                         console.log(`Saved recording for ${userId}`);
+
+//                         // start transcribe -> llm -> VoiceVox
+//                         main(message);
+//                     } else {
+//                         console.log(`Recording for ${userId} was too short`);
+//                     }
+
+//                 });
+//             });
+//         } else {
+//             message.channel.send('You need to join a voice channel first!');
+//         }
+//     }
+// });
+        
+                        // response = transcribeAudio(filePath);
+                        // if (response) {
+                        //     if (response.data.text === '') {
+                        //         console.log('No speech detected');
+                        //         llmFlag = false;
+                        //         return;
+                        //     } else {
+                        //         const transcription = response.data.text;
                                 
-                                console.log(response.data);
-                                const transcription = response.data.text;
-                                console.log(transcription);
+                        //     }
+                        // } else {
+                        //     console.error('Error transcribing audio');
+                        //     llmFlag = false;
+                        // }
 
-                                if (log) { 
-                                    message.channel.send(`Recognized: ${userName}: ${transcription}`);
-                                }
+                        // const user = message.guild.members.cache.get(userId);
+                        // const userName = user.user.username;
+                        // const userHistory = getHistory(userId);
 
-                                var userhistory = getHistory(userId);
+                        // responsellm = await llm(userName,transcription,userHistory);
+
+
+                        // transcribeAudio(filePath).then(response => {
+                        //     if (response) {
+                        //         if (response.data.text === '') {
+                        //             console.log('No speech detected');
+                        //             llmFlag = false;
+                        //             return;
+                        //         }
+                        //         const user = message.guild.members.cache.get(userId);
+                        //         const userName = user.user.username;
                                 
-                                llm(userName,transcription,userhistory).then(responsellm => {
-                                    if (responsellm) {
-                                        llmFlag = false;
-                                        console.log(responsellm);
-                                        userhistory.push({ role: "assistant", content: responsellm });
+                        //         console.log(response.data);
+                        //         const transcription = response.data.text;
+                        //         console.log(transcription);
 
-                                        if (log) {
-                                            message.channel.send(`Assistant: ${responsellm}`);
-                                        }
-                                        voicevox(responsellm).then(async (audioBase64) => {
-                                            const buf = Buffer.from(audioBase64, 'base64');
-                                            fs.writeFileSync('output.wav', buf);
-                                            const connection = getVoiceConnection(message.guild.id);
-                                            playAudio(connection, 'output.wav');
+                        //         if (log) { 
+                        //             message.channel.send(`Recognized: ${userName}: ${transcription}`);
+                        //         }
 
-                                        });
+                        //         var userHistory = getHistory(userId);
+                                
+                        //         llm(userName,transcription,userHistory).then(responsellm => {
+                        //             if (responsellm) {
+                        //                 llmFlag = false;
+                        //                 console.log(responsellm);
+                        //                 userHistory.push({ role: "assistant", content: responsellm });
 
-                                    } else {
-                                        console.error('Error response llm:');
-                                        llmFlag = false;
-                                    }
-                                });
+                        //                 if (log) {
+                        //                     message.channel.send(`Assistant: ${responsellm}`);
+                        //                 }
+                        //                 VoiceVox(responsellm).then(async (audioBase64) => {
+                        //                     const buf = Buffer.from(audioBase64, 'base64');
+                        //                     fs.writeFileSync('output.wav', buf);
+                        //                     const connection = getVoiceConnection(message.guild.id);
+                        //                     playAudio(connection, 'output.wav');
 
-                            } else {
-                                console.error('Error transcribing audio');
-                                llmFlag = false;
-                            }
+                        //                 });
+
+                        //             } else {
+                        //                 console.error('Error response llm:');
+                        //                 llmFlag = false;
+                        //             }
+                        //         });
+
+                        //     } else {
+                        //         console.error('Error transcribing audio');
+                        //         llmFlag = false;
+                        //     }
 
 
-                        });
+                        // });
                         
                         
                         // try {
@@ -392,30 +545,42 @@ client.on('messageCreate', async message => {
                         //     console.log("\nStopping");
                         //     fileStream.stop();
                         // });
-                    } else {
-                        console.log(`Recording for ${userId} was too short`);
-                    }
-                });
-            });
-            message.channel.send('Joined the voice channel!');
+//                     } else {
+//                         console.log(`Recording for ${userId} was too short`);
+//                     }
+//                 });
+//             });
+//             message.channel.send('Joined the voice channel!');
+//         } else {
+//             message.channel.send('You need to join a voice channel first!');
+//         }
+//     } else if (message.content === '!leave') {
+//         const connection = getVoiceConnection(message.guild.id);
+//         if (connection) {
+//             connection.destroy();
+//             message.channel.send('Left the voice channel!');
+//         } else {
+//             message.channel.send('I am not in a voice channel!');
+//         }
+//     }
+// });
+
+
+function check_response (response) {
+    if (response) {
+        if (response === ''){
+            console.log('No response');
+            return false;
         } else {
-            message.channel.send('You need to join a voice channel first!');
+            return true;
         }
-    } else if (message.content === '!leave') {
-        const connection = getVoiceConnection(message.guild.id);
-        if (connection) {
-            connection.destroy();
-            message.channel.send('Left the voice channel!');
-        } else {
-            message.channel.send('I am not in a voice channel!');
-        }
+    } else {
+        console.error('Error response');
+        return false;
     }
-});
-
-
+}
 
 async function llm(username,userMessage,history) {
-    history.push({ role: "user", content: userMessage });
     const url = "http://127.0.0.1:5001/v1/chat/completions";
     var headers = {
         'Content-Type': 'application/json'
@@ -444,33 +609,17 @@ async function llm(username,userMessage,history) {
 //http://127.0.0.1:50021/audio_query?text=aaa&speaker=3
 
 
-//https://zenn.dev/hathle/books/next-voicevox-book/viewer/05_playaudio
+//https://zenn.dev/hathle/books/next-VoiceVox-book/viewer/05_playaudio
 
 
 
-async function voicevox(llmMessage) {
+async function VoiceVox(llmMessage) {
     const msg = llmMessage;
-
-
     const responseQuery = await axios.post(`http://127.0.0.1:50021/audio_query?speaker=${speaker}&text="${msg}"`)
-
     const query = responseQuery.data
-
     const responseSynthesis = await axios.post(`http://127.0.0.1:50021/synthesis?speaker=${speaker}`, query, { responseType: 'arraybuffer'})
-
     const base64Data = Buffer.from(responseSynthesis.data, 'binary').toString('base64')
-
     return base64Data;
-}
-
-async function playAudio(connection, filePath){
-    const player = createAudioPlayer();
-    const resource = createAudioResource(filePath);
-    player.play(resource);
-    connection.subscribe(player);
-    player.on(AudioPlayerStatus.Idle, () => {
-        console.log('Voice played')
-    });
 }
 
 client.login(TOKEN);
