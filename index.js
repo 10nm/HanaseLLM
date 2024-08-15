@@ -10,6 +10,7 @@ const FormData = require('form-data');
 const TOKEN = process.env.TOKEN;
 const fetch = require('node-fetch');
 // const {runllama, stopllama} = require('./run.js');
+const { CohereClient } = require('cohere-ai');
 
 const sampleRate = 16000;
 
@@ -28,6 +29,7 @@ let duration = 0.5;
 let silence = 1000;
 let speaker = 4;
 
+let API=process.env.API;
 
 const doc = `
 ## Discordコマンド  
@@ -180,21 +182,27 @@ async function main(msg, userId){
     const user = msg.guild.members.cache.get(userId);
     const userName = user.user.username;
     const userHistory = getHistory(userId);
-
+    
     const connection = getVoiceConnection(msg.guild.id);
 
     // ユーザーの発話を音声認識
     const userMessage = await transcribeAudio(VoiceFilePATH);
     if (!check_response(userMessage)) { return; }
-    userHistory.push({ role: "user", content: userMessage });
+    
     log_sender(`Recognized: ${userName}: ${userMessage}`);
-
+    console.log(userHistory)
     // ユーザーの発話をもとに応答を生成
     const responseLLM = await llm(userName, userMessage, userHistory);
     //debug
     console.log(responseLLM);
     if (!check_response(responseLLM)) { return; }
-    userHistory.push({ role: "assistant", content: responseLLM });
+    if (API) {
+        userHistory.push({ role: "User", message: userMessage });
+        userHistory.push({ role: "Chatbot", message: responseLLM });
+    } else {
+        userHistory.push({ role: "Assistant", content: responseLLM });
+    }
+    
     log_sender(`Assistant: ${responseLLM}`);
 
     // 応答を音声合成
@@ -580,28 +588,54 @@ function check_response (response) {
     }
 }
 
+
+const cohere = new CohereClient({
+    token: process.env.API_KEY,
+});
+
+async function getChatResponse(userMessage, history) {
+    const response = await cohere.chat({
+        chatHistory: history,
+        message: userMessage,
+        model: "command-r"
+    });
+    return response.text;
+}
+
+
 async function llm(username,userMessage,history) {
+    if (API) {
+        try {
+            const response = await getChatResponse(userMessage, history);
+            return response;
+        } catch (error) {
+            console.error("Error:", error);
+            return null;
+        }
+
+    } else {
+    userHistory.push({ role: "User", content: userMessage });
     const url = "http://127.0.0.1:5001/v1/chat/completions";
     var headers = {
         'Content-Type': 'application/json'
     };
+        let data = {
+            "mode": "chat",
+            "character": "Assistant",
+            "messages": history,
+            "max_tokens": max_token,
+            "preset": "simple-1",
+            stop: ["\n", "User", "Assistant"]
+        };
 
-    let data = {
-        "mode": "chat",
-        "character": "Assistant",
-        "messages": history,
-        "max_tokens": max_token,
-        "preset": "simple-1",
-        stop: ["\n", "User", "Assistant"]
-    };
-
-    try {
-        var response = await axios.post(url, data, { headers });
-        var assistantMessage = response.data.choices[0].message.content;
-        return assistantMessage;
-    } catch (error) {
-        console.error("Error:", error);
-        return null;
+        try {
+            var response = await axios.post(url, data, { headers });
+            var assistantMessage = response.data.choices[0].message.content;
+            return assistantMessage;
+        } catch (error) {
+            console.error("Error:", error);
+            return null;
+        }
     }
 }
 

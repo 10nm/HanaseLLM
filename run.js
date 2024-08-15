@@ -1,7 +1,9 @@
 const { exec, spawn } = require("child_process");
+require("dotenv").config();
 
-const defaultModel = "Llama-3-ELYZA-JP-8B-q4_k_m.gguf?download=true";
+const defaultModel = process.env.DEFAULT_MODEL;
 let llamaProcess = null;
+
 
 
 function runDiscordBot() {
@@ -96,9 +98,14 @@ function runDockerContainer(){
 module.exports = { runllama, stopllama };
 
 function runALL(){
+    console.log(`Default model: ${defaultModel}`);
+    API = process.env.API;
+    console.log(`API: ${API}`);
     runDockerContainer();
     runPythonScript();
-    runllama(defaultModel);
+    if (!API){
+        runllama(defaultModel);
+    }
     runDiscordBot();
 }
 
