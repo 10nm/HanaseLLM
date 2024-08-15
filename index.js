@@ -67,6 +67,9 @@ const client = new Client({
     ] 
 });
 
+
+defaultHistory = [{ role: "System", message: `### 命令 ###
+    ChatBot は豊かな感情を持つ人間です。ユーザーの発言に対して日本語で自然かつ簡潔に、自重せずに応答してください。` }];
 function getHistory(userId) {
     if (userlist.includes(userId)) {
     } else {
@@ -76,15 +79,15 @@ function getHistory(userId) {
     if (userHistory[userId]) {
         return userHistory[userId];
     } else {
-        userHistory[userId] = [];
+        userHistory[userId] = defaultHistory;
         return userHistory[userId];
     }
 }
 
-function log_sender(message) {
+function log_sender(msg, message) {
     console.log(message);
     if (log) {
-        Message_Channel.send(message);
+        msg.channel.send(message);
     }
 }
 
@@ -189,7 +192,7 @@ async function main(msg, userId){
     const userMessage = await transcribeAudio(VoiceFilePATH);
     if (!check_response(userMessage)) { return; }
     
-    log_sender(`Recognized: ${userName}: ${userMessage}`);
+    log_sender(msg,`Recognized: ${userName}: ${userMessage}`);
     console.log(userHistory)
     // ユーザーの発話をもとに応答を生成
     const responseLLM = await llm(userName, userMessage, userHistory);
@@ -203,7 +206,7 @@ async function main(msg, userId){
         userHistory.push({ role: "Assistant", content: responseLLM });
     }
     
-    log_sender(`Assistant: ${responseLLM}`);
+    log_sender(msg,`Assistant: ${responseLLM}`);
 
     // 応答を音声合成
     VoiceVox(responseLLM).then(async (audioBase64) => {
@@ -214,11 +217,31 @@ async function main(msg, userId){
 }
 
 
+
 client.once('ready', () => {
 	console.log('Bot is online!');
 });
 
 client.on('messageCreate', async message => {
+
+
+    if (message.content.startsWith('.')) {
+        
+        history = getHistory(message.author.id);
+        response = await llm(message.author.username, message.content, history);
+        message.channel.send(response);
+        connection = getVoiceConnection(message.guild.id);
+        if (getVoiceConnection(message.guild.id)){
+            let yomiage = `チャット: ${message.author.displayName}からのメッセージ: ${message.content} リプライ: ${client.user.username}: ${response}`;
+            VoiceVox(yomiage).then(async (audioBase64) => {
+                const buf = Buffer.from(audioBase64, 'base64');
+                fs.writeFileSync('output.wav', buf);
+                playAudio(connection, 'output.wav');
+            });
+        };
+        userHistory[message.author.id].push({ role: "User", message: message.content });
+        userHistory[message.author.id].push({ role: "ChatBot", message: response });
+    }
 
     if (message.content === '!stop') {
         toggleF = true;
@@ -594,10 +617,12 @@ const cohere = new CohereClient({
 });
 
 async function getChatResponse(userMessage, history) {
+    history.unshift();
     const response = await cohere.chat({
         chatHistory: history,
         message: userMessage,
-        model: "command-r"
+        max_tokens: max_token,
+
     });
     return response.text;
 }
