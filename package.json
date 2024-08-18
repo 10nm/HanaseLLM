@@ -12,6 +12,8 @@
   "dependencies": {
     "@discordjs/voice": "^0.17.0",
     "axios": "^1.7.2",
+    "cohere-ai": "^7.12.0",
+    "date-utils": "^1.2.21",
     "deepspeech-gpu": "^0.9.3",
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",

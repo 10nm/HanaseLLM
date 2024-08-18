@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, messageLink } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, EndBehaviorType, PlayerSubscription  } = require('@discordjs/voice');
 const { createWriteStream } = require('fs');
 const prism = require('prism-media');
@@ -70,6 +70,16 @@ const client = new Client({
 
 defaultHistory = [{ role: "System", message: `### 命令 ###
     ChatBot は豊かな感情を持つ人間です。ユーザーの発言に対して日本語で自然かつ簡潔に、自重せずに応答してください。` }];
+
+function pushHistory(userId, message) {
+    if (userlist.includes(userId)) {
+        userHistory[userId].push(message);
+    } else {
+        getHistory(userId);
+        pushHistory(userId, message);
+    }
+}
+
 function getHistory(userId) {
     if (userlist.includes(userId)) {
     } else {
@@ -79,7 +89,11 @@ function getHistory(userId) {
     if (userHistory[userId]) {
         return userHistory[userId];
     } else {
-        userHistory[userId] = defaultHistory;
+        if (API === "true") {
+            userHistory[userId] = defaultHistory;
+        } else {
+            userHistory[userId] = [];
+        }
         return userHistory[userId];
     }
 }
@@ -184,29 +198,29 @@ async function main(msg, userId){
     console.log(userId)
     const user = msg.guild.members.cache.get(userId);
     const userName = user.user.username;
-    const userHistory = getHistory(userId);
+    // const userHistory = getHistory(userId);
     
     const connection = getVoiceConnection(msg.guild.id);
 
     // ユーザーの発話を音声認識
     const userMessage = await transcribeAudio(VoiceFilePATH);
     if (!check_response(userMessage)) { return; }
-    
     log_sender(msg,`Recognized: ${userName}: ${userMessage}`);
-    console.log(userHistory)
     // ユーザーの発話をもとに応答を生成
-    const responseLLM = await llm(userName, userMessage, userHistory);
+    const responseLLM = await llm(userId, userMessage);
     //debug
     console.log(responseLLM);
     if (!check_response(responseLLM)) { return; }
-    if (API) {
-        userHistory.push({ role: "User", message: userMessage });
-        userHistory.push({ role: "Chatbot", message: responseLLM });
+    if (API === "true") {
+        pushHistory(userId, {role : "User", message: userMessage});
+        pushHistory(userId, {role : "Chatbot", message: responseLLM});
+        // userHistory.push({ role: "User", message: userMessage });
+        // userHistory.push({ role: "Chatbot", message: responseLLM });
     } else {
-        userHistory.push({ role: "Assistant", content: responseLLM });
+        pushHistory(userId, {role: "Assistant", content: responseLLM});
     }
     
-    log_sender(msg,`Assistant: ${responseLLM}`);
+    log_sender(msg,`LLM: ${responseLLM}`);
 
     // 応答を音声合成
     VoiceVox(responseLLM).then(async (audioBase64) => {
@@ -359,6 +373,11 @@ client.on('messageCreate', async message => {
             connection.on(VoiceConnectionStatus.Ready, () => {
                 console.log('The bot has connected to the channel!');
             });
+            if (API === "true") {
+                log_sender(message, '外部APIによる応答モードです');
+            } else {
+                log_sender(message, 'ローカルLLMによる応答モードです');
+            }
             message.channel.send('Joined the voice channel!');
 
             handleStreaming(connection, message);
@@ -616,8 +635,8 @@ const cohere = new CohereClient({
     token: process.env.API_KEY,
 });
 
-async function getChatResponse(userMessage, history) {
-    history.unshift();
+async function getChatResponse(userId , userMessage) {
+    history = getHistory(userId);
     const response = await cohere.chat({
         chatHistory: history,
         message: userMessage,
@@ -628,18 +647,29 @@ async function getChatResponse(userMessage, history) {
 }
 
 
-async function llm(username,userMessage,history) {
-    if (API) {
+async function llm(userId,userMessage) {
+    console.log(API)
+    if (API === "true") {
         try {
-            const response = await getChatResponse(userMessage, history);
+            console.log(`Reply with Cohere-API`);
+            const response = await getChatResponse(userId , userMessage);
             return response;
         } catch (error) {
             console.error("Error:", error);
             return null;
         }
 
-    } else {
-    userHistory.push({ role: "User", content: userMessage });
+    } else if (API === "false") {
+    console.log(`Reply with Local-LLM`); 
+    //  push
+    pushHistory(userId, { role: "User", content: userMessage });
+
+    //ユーザーの履歴を取得する
+    history = getHistory(userId);
+
+    // debug
+    console.log(history);
+
     const url = "http://127.0.0.1:5001/v1/chat/completions";
     var headers = {
         'Content-Type': 'application/json'

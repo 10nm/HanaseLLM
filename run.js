@@ -1,9 +1,20 @@
-const { exec, spawn } = require("child_process");
 require("dotenv").config();
+const { exec, spawn } = require("child_process");
+
 
 const defaultModel = process.env.DEFAULT_MODEL;
 let llamaProcess = null;
 
+function runALL(){
+    console.log(`Default model: ${defaultModel}`);
+    console.log(`API: ${process.env.API}`);
+    runDockerContainer();
+    runPythonScript();
+    if (process.env.API === "false"){
+        runllama(defaultModel);
+    }
+    runDiscordBot();
+}
 
 
 function runDiscordBot() {
@@ -97,17 +108,7 @@ function runDockerContainer(){
 
 module.exports = { runllama, stopllama };
 
-function runALL(){
-    console.log(`Default model: ${defaultModel}`);
-    API = process.env.API;
-    console.log(`API: ${API}`);
-    runDockerContainer();
-    runPythonScript();
-    if (!API){
-        runllama(defaultModel);
-    }
-    runDiscordBot();
-}
+
 
 runALL();
 // runDockerContainer();
