@@ -7,13 +7,6 @@ app = Flask(__name__)
 
 model = WhisperModel("small", device="cuda", compute_type="float32")
 
-# start = time.time()
-# segments, info = model.transcribe("voice.wav", language="ja", vad_filter=True, without_timestamps=True)
-# for segment in segments:
-#     print(segment.text)
-# end = time.time()
-# print(end - start)
-
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
     if 'audio' not in request.files:

@@ -1,103 +1,67 @@
 # HanaseLLM
 
 ## 概要
-Discord上でのLLMとの会話(通話)  
-全システムローカル動作可
 
+HanaseLLMは、DiscordボイスチャンネルでLLMと会話できるDiscordボットです。
 
-### 構成図  
-<picture>
-  <source srcset="./pics/hanasellm-dark.png" media="(prefers-color-scheme: dark)">
-  <source srcset="./pics/hanasellm-light.png" media="(prefers-color-scheme: light)">
-  <img src="./pics/hanasellm-white.png" alt="構成図">
-</picture>
+## ディレクトリ構成
+
+```
+talkwithllama/
+├── index.js          # ボットの起動を行う
+├── .env              # 設定を書く
+├── src/              
+│   ├── discord_bot.js    # Discordクライアントの初期化、ボイスチャンネルへの接続
+│   ├── transcription.js  # 音声認識(GEMINI APIを使用)
+│   ├── llm.js            # 応答生成(GEMINI API)
+│   ├── voice_synthesis.js # 音声合成(VoiceVox API)
+│   └── config.js         # 設定の取り扱い
+└── README.md
+```
+
+## 必要な環境
+
+-   Node.js
+-   Discord Botの設定  
+[Discord dev](https://discord.com/developers/applications)
+-   Gemini API  
+[Google AI Studio](https://aistudio.google.com/apikey)
+-   VoiceVox engine  
+[VoiceVox_engine](https://github.com/VOICEVOX/voicevox_engine)
 
 ## 使い方
 
-### 事前構築
-openai-chatgpt互換のLLMサーバ(起動プログラム run.js は text-generation-webui)   
-[VOICEVOX Engine](https://github.com/VOICEVOX/voicevox_engine) APIサーバ
-
-
-### 起動
-
-**一括起動**  
+1.  リポジトリをクローンします。
+2.  必要なパッケージをインストールします。
 
 ```
-//初回のみ
 npm install
-
-//起動
-node run.js
 ```
 
-**個別起動**  
-**Text-generation-webui**  
-[text-generation-webui](https://github.com/oobabooga/text-generation-webui) を port 5001 で起動する。  
-**WSLの場合** `./wsl.sh --api --api-port 5001`  
-モデルは任意のものをセットしておく。(環境に合わせて、レスポンスの良いもの。)
+3.  .envファイルを作成し、Discordボットのトークンを設定します。
 
-**VoiceVox Engine**  
-[VoiceVox Engine](https://github.com/VOICEVOX/voicevox_engine)を port 50021 で起動する。  
-**Dockerの場合**  公式ドキュメント通りにpullしてから  
-`sudo docker run -d --name voicevox_engine_container -p 50021:50021 voicevox/voicevox_engine:cpu-ubuntu20.04-latest` 
+```
+TOKEN=YOUR_DISCORD_BOT_TOKEN
+API=true or false (外部APIを使用するかどうか)
+API_KEY=YOUR_COHERE_API_KEY (外部APIを使用する場合)
+```
 
-#### Whisperサーバ
-port 5000  
-`python3 faster.py`
+4.  ボットを起動します。
 
-
-#### Discordサーバ本体
-``` 
-// 初回 パッケージインストール
-npm install
-
-// discord.js サーバ起動
+```
 node index.js
 ```
 
-### Discordコマンド
+## Discordコマンド
 
-- **!join** ボイスチャンネルに参加  
-- **!leave** ボイスチャンネルから退出  
-- **!stop** 音声認識を停止
-- **!refresh** 音声認識を再開. Flag(認識・生成のパンクを防ぐ機構)をリセットする。 突然認識されなくなった場合に使用
-- **!clear** 会話履歴の削除  
-- **!history** サーバ側に会話履歴表示  
-- **!log** Discord上に会話ログを出力するか(on/off トグル)  
-- **!duration {time(float)秒}** 指定した秒数以上の音声のみを認識させる  
-- **!max_token {token(int)}** 指定したトークン内で出力させる(まれに見切れる)   
-- **!silence {time(float)ミリ秒}** 指定したミリ秒の沈黙があった場合に音声認識を終了する
-- **!setspeaker {speaker(int)}** 指定したスピーカーで音声合成を行う
-- **!settings** 現在の設定を表示
+-   **!join** ボイスチャンネルに参加
+-   **!leave** ボイスチャンネルから退出
 
-### 注意
-プッシュトゥトークを設定する(誤検知対策)
+## 設定
 
-### 細かい仕様
-**Flag**
-- **Flag** : 連続での音声入力 -> 音声認識 を防止する
-- **llmFlag** : 連続でのllm推論を防止
-- **toggleF** : 手動での認識/推論停止用
+以下の変数は.envファイルで設定できます。
 
-すべてのFlagは !refresh で解除される
-
-Flagのタイミング
-Flag true : speaking on
-Flag false : speaking end
-
-llmFlag true : speakingのdurationが指定秒以上だった場合
-llmFlag false : 音声認識の結果が空であった場合, llmからレスポンスが適切にかえってきた場合,llmがエラーを返した場合,音声認識にエラーが生じた場合
-
-**historyの管理**
-発言者(辞書管理)別にhistoryのlistを作成、llmに送信している
-
-
-## 改善したい
-- [ ] ~~発言者の名前がすべて!join実行者の名前になっている~~
-- [ ] ~~複数人の場合は人別にhistoryを分ける~~
-- [ ] ~~一括起動のスクリプト？docker化？~~
-- [ ] text-gen-webuiもdocker化
-- [ ] ~~llmがhistoryすべてに対して応答しようとする現象~~ チューニングで改善
-- [ ] レスポンス改善(wavエンコードを経由しないリアルタイムな手法？)
-- [ ] ~~llmの設定、サーバーを設定ファイルまたはdiscordから変更できるようにする~~ discordコマンドで設定できるようにした.
+-   **TOKEN** Discordボットのトークン
+-   **API\_KEY** 
+-   **duration** 音声認識を開始する最小録音時間 (秒)
+-   **speaker** VoiceVoxのスピーカーID
