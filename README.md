@@ -1,67 +1,33 @@
 # HanaseLLM
 
-## 概要
-
-HanaseLLMは、DiscordボイスチャンネルでLLMと会話できるDiscordボットです。
-
-## ディレクトリ構成
-
-```
-talkwithllama/
-├── index.js          # ボットの起動を行う
-├── .env              # 設定を書く
-├── src/              
-│   ├── discord_bot.js    # Discordクライアントの初期化、ボイスチャンネルへの接続
-│   ├── transcription.js  # 音声認識(GEMINI APIを使用)
-│   ├── llm.js            # 応答生成(GEMINI API)
-│   ├── voice_synthesis.js # 音声合成(VoiceVox API)
-│   └── config.js         # 設定の取り扱い
-└── README.md
-```
+HanaseLLMは、Discord上でLLMと会話できるDiscord Botです。
 
 ## 必要な環境
 
--   Node.js
--   Discord Botの設定  
-[Discord dev](https://discord.com/developers/applications)
--   Gemini API  
-[Google AI Studio](https://aistudio.google.com/apikey)
--   VoiceVox engine  
-[VoiceVox_engine](https://github.com/VOICEVOX/voicevox_engine)
+- Node.js
+- Discord Bot Token
+- Google Gemini API Key
 
 ## 使い方
 
-1.  リポジトリをクローンします。
-2.  必要なパッケージをインストールします。
+1.  必要な環境をインストールする。
+2.  Discord Bot TokenとGoogle Gemini API Keyを取得する。
+3.  `.env`ファイルを作成し、以下の内容を記述する。
 
 ```
-npm install
+TOKEN=<Discord Bot Token>
+GEMINI_API_KEY=<Google Gemini API Key>
 ```
 
-3.  .envファイルを作成し、Discordボットのトークンを設定します。
-
-```
-TOKEN=YOUR_DISCORD_BOT_TOKEN
-API=true or false (外部APIを使用するかどうか)
-API_KEY=YOUR_COHERE_API_KEY (外部APIを使用する場合)
-```
-
-4.  ボットを起動します。
-
-```
-node index.js
-```
-
-## Discordコマンド
-
--   **!join** ボイスチャンネルに参加
--   **!leave** ボイスチャンネルから退出
+4.  `npm install`を実行して、必要なパッケージをインストールする。
+5.  `node index.js`を実行して、Botを起動する。
 
 ## 設定
-
-以下の変数は.envファイルで設定できます。
-
--   **TOKEN** Discordボットのトークン
--   **API\_KEY** 
--   **duration** 音声認識を開始する最小録音時間 (秒)
--   **speaker** VoiceVoxのスピーカーID
+`config.js`:
+- `TOKEN`: Discord Bot Token
+- `GEMINI_API_KEY`: Google Gemini API Key
+- `VoiceFilePATH`: 音声ファイルの保存先
+- `duration`: 録音時間
+- `silence`: 無音時間
+- `max_token`: LLMの最大トークン数
+- `speaker`: VoiceVoxのスピーカーID
