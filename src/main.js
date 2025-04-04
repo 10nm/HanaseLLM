@@ -1,11 +1,12 @@
 import config from "./config.js";
+const MODEL_NAME = config.MODEL_NAME;
 // 文字起こし
 import { transcribeAudio } from "./transcription.js";
 // 応答生成
 import { llm } from "./llm.js";
 // 音声合成
 import { VoiceVox, playAudio } from "./voice_synthesis.js";
-import { googleSTT } from "./streaming_transcribe.js";
+import { googleSTT } from "./STT.js";
 
 
 // const VoiceFilePATH = config.VoiceFilePATH;
@@ -32,10 +33,10 @@ async function main(userId, connection, message, data) {
     }
 
     // gemini に応答を生成させる
-    const LLM_Message = await llm(userId, usermessage);
+    const LLM_Message = await llm(userId, usermessage, MODEL_NAME);
     if (LLM_Message) {
         console.log(`LLM message: ${LLM_Message}`);
-        message.channel.send(`[LLM_gen] Gemini-2.0-flash-lite: ${LLM_Message}`);
+        message.channel.send(`[LLM_gen] ${MODEL_NAME}: ${LLM_Message}`);
     } else {
         console.log("Error: No LLM message received.");
         return;

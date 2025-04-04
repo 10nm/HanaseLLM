@@ -7,10 +7,11 @@ HanaseLLMは、Discord上でLLMと会話できるDiscord Botです。
 - Node.js
 - Discord Bot Token
 - Google Gemini API Key
+- GCP Speech-to-Text API
 
 ## 使い方
 
-1.  必要な環境をインストールする。
+1.  必要な環境をインストールする。GCPのセットアップも行う。
 2.  Discord Bot TokenとGoogle Gemini API Keyを取得する。
 3.  `.env`ファイルを作成し、以下の内容を記述する。
 
