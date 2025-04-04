@@ -9,8 +9,14 @@ const { duration, silence, sampleRate, VoiceFilePATH } = config;
 
 function handleStreaming(connection, message) {
     const receiver = connection.receiver;
+    let flag = false;
 
     receiver.speaking.on('start', userId => {
+        if (flag) {
+            console.log(`Already listening to ${userId}`);
+            return;
+        }
+        flag = true;
         console.log(`Listening to ${userId}`);
         const audioStream = receiver.subscribe(userId, {
             end: {
@@ -19,7 +25,7 @@ function handleStreaming(connection, message) {
             }
         });
 
-        const pcmStream = audioStream.pipe(new prism.opus.Decoder({ rate: sampleRate, channels: 2, frameSize: 960 }));
+        const pcmStream = audioStream.pipe(new prism.opus.Decoder({ rate: sampleRate, channels: 1, frameSize: 960 }));
 
         const pcmChunks = [];
         pcmStream.on('data', chunk => {
@@ -28,25 +34,25 @@ function handleStreaming(connection, message) {
 
         let startTime = Date.now();
         pcmStream.on('end', () => {
+            
             const endTime = Date.now();
-            const session_time = (endTime - startTime - 1000) / 1000;
+            const session_time = (endTime - startTime) / 1000;
             console.log(`Recording duration: ${session_time} seconds`);
 
             if (session_time > duration) {
                 const pcmBuffer = Buffer.concat(pcmChunks);
                 const wavBuffer = wavConverter.encodeWav(pcmBuffer, {
-                    numChannels: 2,
+                    numChannels: 1,
                     sampleRate: sampleRate,
                     byteRate: 16
                 });
 
-                fs.writeFileSync(VoiceFilePATH, wavBuffer);
-                console.log(`Saved recording for ${userId}`);
-                // mainを呼び出す transcribe -> llm -> voicevox の流れ
-                main(userId, connection, message);
+                main(userId, connection, message, wavBuffer);
+                flag = false;
 
             } else {
                 console.log(`Recording for ${userId} was too short`);
+                flag = false;
             }
         });
     });

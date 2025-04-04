@@ -24,9 +24,9 @@ async function llm(userId, userMessage) {
     init_history();
     const history = get_history();
     chat = ai.chats.create({
-      model: "gemini-2.0-flash-lite",
+      model: "gemini-2.0-flash",
       config: {
-        systemInstruction: "日本語での音声電話のシミュレーションを行います。ユーザーの発言に対しては**話し言葉で**、**簡潔に**応答してください。",
+        systemInstruction: "日本語での音声通話のシミュレーションを行います。ユーザーの発言に対しては話し言葉で、応答のみを出力してください。また、ユーザー側のメッセージの初めにはユーザー名が提示されますから、複数人の対話であることを考慮しながら応答してください。",
       },
       history: history,
     });
@@ -35,9 +35,13 @@ async function llm(userId, userMessage) {
   // Push user message to history
   push_history({ role: 'user', parts: [{ text: userMessage }] });
 
+  const userdisplayname = userId.displayName
+
+  const sendMSG = `${userdisplayname}: ${userMessage}`;
+
   try {
     const response = await chat.sendMessage({
-      message: userMessage
+      message: sendMSG
     });
 
     const LLM_Message = response.text;

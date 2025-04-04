@@ -5,22 +5,32 @@ import { transcribeAudio } from "./transcription.js";
 import { llm } from "./llm.js";
 // 音声合成
 import { VoiceVox, playAudio } from "./voice_synthesis.js";
+import { googleSTT } from "./streaming_transcribe.js";
 
 
-const VoiceFilePATH = config.VoiceFilePATH;
+// const VoiceFilePATH = config.VoiceFilePATH;
 
 // pcmStream end (話し終わり)にトリガされる 
-async function main(userId, connection, message) {
+async function main(userId, connection, message, data) {
     // gemini に文字起こしさせる
-    const usermessage = await transcribeAudio(VoiceFilePATH);
-    const username = message.author.username;
+    // const usermessage = await transcribeAudio(VoiceFilePATH);
+    // const username = message.author.displayName;
+    // if (usermessage) {
+    //     console.log(`User message: ${usermessage}`);
+    //     message.channel.send(`[transcription] ${username}: ${usermessage}`);
+    // } else {
+    //     console.log("Error: No user message received.");
+    //     return;
+    // }
+
+    // googleSTT に音声認識させる
+    const usermessage = await googleSTT(data);
     if (usermessage) {
         console.log(`User message: ${usermessage}`);
+        const username = message.author.displayName;
         message.channel.send(`[transcription] ${username}: ${usermessage}`);
-    } else {
-        console.log("Error: No user message received.");
-        return;
     }
+
     // gemini に応答を生成させる
     const LLM_Message = await llm(userId, usermessage);
     if (LLM_Message) {
@@ -39,6 +49,7 @@ async function main(userId, connection, message) {
         console.log("Error: No voice synthesis result received.");
         return;
     }
+    
     // 音声を流す
     if (result) {
         await playAudio(connection, result);

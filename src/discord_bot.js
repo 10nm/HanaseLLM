@@ -1,6 +1,6 @@
 // discord_bot.js
 import pkg from 'discord.js';
-import { joinVoiceChannel, VoiceConnectionStatus } from '@discordjs/voice';
+import { getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } from '@discordjs/voice';
 const { Client, GatewayIntentBits} = pkg;
 import config from './config.js';
 import { handleStreaming } from './handle_streaming.js';

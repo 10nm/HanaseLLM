@@ -9,8 +9,8 @@ const config = {
     duration: 0.5, // Minimum recording duration (seconds)
     silence: 1000, // Silence duration to end recording (milliseconds)
     max_token: 150, // Maximum number of tokens for LLM response
-    speaker: 4, // VoiceVox speaker ID
-    sampleRate: 16000
+    speaker: 1, // VoiceVox speaker ID
+    sampleRate: 48000
 };
 
 export default config;
