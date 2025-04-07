@@ -1,18 +1,21 @@
+import fs from 'fs';
+
 const DefaultHistory = []
-//    { role: "user", parts: [{ text: "[System] 今からあなたは一人の人間として、ユーザーと会話をします。ユーザーの発言に対しては日本語で、簡潔かつ自然に応答してください。" }] },
-// { role: "model", parts: [{ text: "わかった。" }] }
 
 let History = [];
 function push_history(message) {
-    if (History.length > 0) {
-        History.push(message);
-    } else {
-        History = DefaultHistory;
-    }
+    History.push(message);
+    fs.writeFileSync('./src/temp/history.json', JSON.stringify(History));
 }
 
 function init_history() {
-    History = DefaultHistory;
+    try {
+        const data = fs.readFileSync('./src/temp/history.json', 'utf8');
+        History = JSON.parse(data);
+    } catch (err) {
+        History = DefaultHistory;
+        console.log("Starting new history");
+    }
 }
 
 function get_history() {
