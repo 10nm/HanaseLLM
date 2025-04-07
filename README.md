@@ -32,3 +32,4 @@ GEMINI_API_KEY=<Google Gemini API Key>
 - `silence`: 無音時間
 - `max_token`: LLMの最大トークン数
 - `speaker`: VoiceVoxのスピーカーID
+- `MODEL_NAME`: Geminiのモデル名

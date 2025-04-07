@@ -4,14 +4,13 @@ import fs from 'fs';
 import config from './config.js';
 import { createAudioPlayer, createAudioResource, AudioPlayerStatus } from '@discordjs/voice';
 
-const speaker = config.speaker; // VoiceVox speaker ID
 
 /**
  * Generates audio using VoiceVox.
  * @param {string} llmMessage - The message to synthesize.
  * @returns {string} - The base64 encoded audio data.
  */
-async function VoiceVox(llmMessage) {
+async function VoiceVox(llmMessage, speaker) {
     try {
         const msg = llmMessage;
         const responseQuery = await axios.post(
@@ -44,7 +43,7 @@ async function playAudio(connection, filePath) {
     try {
         const player = createAudioPlayer();
         const resource = createAudioResource(filePath);
-        player.play(resource);
+        await player.play(resource);
         connection.subscribe(player);
         player.on(AudioPlayerStatus.Idle, () => {
             console.log('Voice played');
