@@ -8,6 +8,8 @@ import { getSpeakerslist } from './get_info.js';
 import { handleStreaming } from './handle_streaming.js';
 import { llm } from './llm.js';
 import { main } from './main.js';
+import { playAudio, VoiceVox } from './voice_synthesis.js';
+import { battle } from './battle.js';
 const { TOKEN } = config;
 
 const client = new Client({
@@ -26,8 +28,10 @@ client.once('ready', () => {
 });
 
 let isenable = false;
+let obs_channel = 0;
 client.on('messageCreate', async (message) => {
     if (message.content === '!join') {
+        obs_channel = message.channel.id;
         isenable = true;
         if (message.member.voice.channel) {
 
@@ -99,6 +103,39 @@ client.on('messageCreate', async (message) => {
             - \`!destroy\` : 応答を停止します。記憶は保持しています。
         `;
         message.channel.send(helpMessage);
+    } else if (message.content.startsWith('!battle')) {
+        const args = message.content.split(' ');
+        if (args.length > 6) {
+            const topic = args[1];
+            const stance1 = args[2];
+            const stance2 = args[3];
+            const modelName = args[4];
+            const additionalInstruction1 = args[5];
+            const additionalInstruction2 = args[6];
+            const connection = getVoiceConnection(message.guild.id);
+            if (connection) {
+                message.channel.send(`**バトル開始！**\n**論題**: ${topic} \n**立場1**: ${stance1} \n**立場2**: ${stance2} \n**モデル名**: ${modelName} \n**立場1への追加命令**: ${additionalInstruction1} \n**立場2への追加命令**: ${additionalInstruction2}`);
+                message.channel.send('----------------------\n');
+                await battle(topic, stance1, stance2, modelName, message.channel.id, message, additionalInstruction1, additionalInstruction2);
+            } else {
+                message.reply('ボイスチャンネルに接続されていません。');
+            }
+        } else if (args.length > 4) {
+            const topic = args[1];
+            const stance1 = args[2];
+            const stance2 = args[3];
+            const modelName = args[4];
+            const connection = getVoiceConnection(message.guild.id);
+            if (connection) {
+                message.channel.send(`**バトル開始！**\n**論題**: ${topic} \n**立場1**: ${stance1} \n**立場2**: ${stance2} \n**モデル名**: ${modelName}`);
+                message.channel.send('----------------------\n');
+                await battle(topic, stance1, stance2, modelName, message.channel.id, message, "", "");
+            } else {
+                message.reply('ボイスチャンネルに接続されていません。');
+            }
+        } else {
+            message.channel.send('引数が不足しています。!battle [論題] [立場1] [立場2] [モデル名] [立場1への追加命令] [立場2への追加命令] を指定してください。');
+        }
     } else if (message.content.startsWith('.')) {
         const text = message.content.slice(1);
         const username = message.author.username;
@@ -108,9 +145,18 @@ client.on('messageCreate', async (message) => {
         } else {
             message.reply('ボイスチャンネルに接続されていません。');
         }
+    } else if (message.channel.id === obs_channel && isenable && message.author.id !== client.user.id) {
+        const text = message.content;
+        const connection = getVoiceConnection(message.guild.id);
+        if (connection) {
+            const path = await VoiceVox(text, 52);
+            playAudio(connection, path);
+        } else {
+            message.reply('ボイスチャンネルに接続されていません。');
+        }
     }
 });
 
 client.login(TOKEN);
 
-export { client };
+export { client, getVoiceConnection };

@@ -45,50 +45,58 @@ console.log("systemInstruction:", systemInstruction);
  */
 
 async function llm(username, userMessage) {
-    // Initialize GoogleGenAI and chat only once
-    if (!ai) {
-      ai = new GoogleGenAI({ apiKey: API_KEY });
-    }
-    if (!chat) {
-      init_history();
-      const history = get_history();
-      chat = ai.chats.create({
-        model: "gemini-2.0-flash",
-        config: {
-          systemInstruction: systemInstruction,
-        },
-        history: history,
-      });
-    }
+  // Initialize GoogleGenAI and chat only once
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey: API_KEY });
+  }
+  if (!chat) {
+    init_history();
+    const history = get_history();
+    chat = ai.chats.create({
+      model: "gemini-2.0-flash",
+      config: {
+        systemInstruction: systemInstruction,
+      },
+      history: history,
+    });
+  }
 
-    // Push user message to history
-    push_history({ role: 'user', parts: [{ text: userMessage }] });
+  // Push user message to history
+  push_history({ role: 'user', parts: [{ text: userMessage }] });
 
+  const sendMSG = `${username}: ${userMessage}`;
+  console.log("sendMSG:", sendMSG);
+  try {
+    const startTime = Date.now();
+    const response = await chat.sendMessage({
+      message: sendMSG
+    });
+    const endTime = Date.now();
+    const session_time = (endTime - startTime) / 1000;
 
+    const LLM_Message = response.text;
 
-    const sendMSG = `${username}: ${userMessage}`;
-    console.log("sendMSG:", sendMSG);
-    try {
-      const startTime = Date.now();
-      const response = await chat.sendMessage({
-        message: sendMSG
-      });
-      const endTime = Date.now();
-      const session_time = (endTime - startTime) / 1000;
-
-      const LLM_Message = response.text;
-
-      if (LLM_Message) {
-        push_history({ role: 'model', parts: [{ text: LLM_Message }] });
-        return [LLM_Message, session_time];
-      } else {
-        console.warn("No content in the last message:", response);
-        return null;
-      }
-    } catch (error) {
-      console.error("Error in llm function:", error);
+    if (LLM_Message) {
+      push_history({ role: 'model', parts: [{ text: LLM_Message }] });
+      return [LLM_Message, session_time];
+    } else {
+      console.warn("No content in the last message:", response);
       return null;
     }
+  } catch (error) {
+    console.error("Error in llm function:", error);
+    return null;
+  }
 }
 
-export { llm };
+async function llm_battle(username, userMessage) {
+  const ai_battle = new GoogleGenAI({ apiKey: API_KEY });
+  const send_msg = `${username}: ${userMessage}`;
+  const response = await ai_battle.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: send_msg,
+  });
+  return response.text;
+}
+
+export { llm, llm_battle };

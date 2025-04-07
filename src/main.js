@@ -48,9 +48,6 @@ async function main(username, connection, message, data, speaker, speak_long) {
 
         const text_speaker = 52
         // voicevox に音声合成させる ・ 流す
-        // 読まないところを削除 [] とその中を消す
-        usermessage = usermessage.replace(/\[.*?\]/g, '');
-
         const result = await VoiceVox(usermessage, text_speaker);
         if (result) {
             console.log(`Voice synthesis result: ${result}`);
@@ -83,6 +80,7 @@ async function main(username, connection, message, data, speaker, speak_long) {
     // voicevox に音声合成させる ・ 流す
     console.log(LLM_Message.length);
     if (LLM_Message.length > 0 && LLM_Message.length < 800) {
+        LLM_Message = LLM_Message.replace(/\[.*?\]/g, '');
         const result = await VoiceVox(LLM_Message, speaker);
         if (result) {
             console.log(`Voice synthesis result: ${result}`);

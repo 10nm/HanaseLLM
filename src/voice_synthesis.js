@@ -40,17 +40,25 @@ async function VoiceVox(llmMessage, speaker) {
  * @param {string} filePath - The path to the audio file.
  */
 async function playAudio(connection, filePath) {
+  return new Promise((resolve, reject) => {
     try {
-        const player = createAudioPlayer();
-        const resource = createAudioResource(filePath);
-        await player.play(resource);
-        connection.subscribe(player);
-        player.on(AudioPlayerStatus.Idle, () => {
-            console.log('Voice played');
-        });
-    } catch (error) {
+      const player = createAudioPlayer();
+      const resource = createAudioResource(filePath);
+      player.play(resource);
+      connection.subscribe(player);
+      player.on(AudioPlayerStatus.Idle, () => {
+        console.log('Voice played');
+        resolve();
+      });
+      player.on('error', error => {
         console.error("Error playing audio:", error);
+        reject(error);
+      });
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      reject(error);
     }
+  });
 }
 
 export { VoiceVox, playAudio };
