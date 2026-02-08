@@ -23,6 +23,7 @@ export interface Config {
   readonly localLlmUrl?: string;
   readonly localLlmAutoStart: boolean;
   readonly localLlmScriptPath?: string;
+  readonly maxVoiceResponseLength: number;
 }
 
 // ============================================================================

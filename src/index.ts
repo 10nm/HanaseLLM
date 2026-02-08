@@ -1,3 +1,5 @@
+import './polyfills.js';
+
 import ffmpeg from 'ffmpeg-static';
 import { getConfig, validateConfig } from './config.js';
 import { initHistory } from './services/history.js';

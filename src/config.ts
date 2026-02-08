@@ -52,6 +52,7 @@ export const getConfig = (): Config => {
     localLlmUrl,
     localLlmAutoStart,
     localLlmScriptPath,
+    maxVoiceResponseLength: parseInt(process.env.MAX_VOICE_RESPONSE_LENGTH || '300', 10),
   };
 };
 

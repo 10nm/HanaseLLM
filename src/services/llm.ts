@@ -7,17 +7,6 @@ import type { Config, ConversationHistory, LLMResponse, Result } from '../types.
  */
 
 /**
- * システムプロンプトを生成
- */
-const createSystemPrompt = (): string => {
-  const now = new Date();
-  const formattedDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
-  const formattedTime = `${now.getHours()}時${now.getMinutes()}分`;
-
-  return `ユーザーに対して適切に応答してください。`;
-};
-
-/**
  * Gemini APIクライアントを作成
  */
 export const createLLMClient = (config: Config) => {
@@ -63,12 +52,13 @@ export const generateResponse = async (
   client: GoogleGenAI | null,
   userMessage: string,
   history: ConversationHistory,
-  config: Config
+  config: Config,
+  customSystemPrompt?: string
 ): Promise<Result<LLMResponse, Error>> => {
   const startTime = Date.now();
 
   try {
-    const systemPrompt = createSystemPrompt();
+    const systemPrompt = customSystemPrompt || `ユーザーに対して適切に応答してください。`;
 
     // ローカルLLMの場合
     if (config.llmProvider === 'local') {
@@ -163,7 +153,8 @@ export const initLLMService = (config: Config) => {
   const model = createLLMClient(config);
 
   return {
-    generate: (userMessage: string, history: ConversationHistory) =>
-      generateResponse(model, userMessage, history, config),
+    generate: (userMessage: string, history: ConversationHistory, systemPrompt?: string) =>
+      generateResponse(model, userMessage, history, config, systemPrompt),
+    setSystemPrompt: (_prompt: string) => {},
   };
 };

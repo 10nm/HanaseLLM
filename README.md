@@ -1,4 +1,4 @@
-# HanaseLLM v2.0
+# HanaseLLM v2.1
 
 HanaseLLM は、Discord上でLLMと音声で会話ができるBotです。
 
@@ -8,7 +8,7 @@ HanaseLLM は、Discord上でLLMと音声で会話ができるBotです。
 - Node.js (ES Module)
 - discord.js v14 + @discordjs/voice
 - Google Cloud Speech-to-Text v7
-- Google Gemini 2.0 Flash (@google/genai v0.7) / Local LLM API
+- Google Gemini (@google/genai v0.7) / Local LLM API
 - VoiceVox
 - prism-media, wav-converter
 
@@ -36,12 +36,7 @@ HanaseLLM は、Discord上でLLMと音声で会話ができるBotです。
 
 #### 2. Local LLM
 
-- Python 3.8+ とCUDA対応GPU（あった方がいい）
-- 必要なPythonパッケージ:
-  ```bash
-  pip install torch transformers peft fastapi uvicorn
-  ```
-- ローカルモデル（例: Gemma 3 270M + LoRA）
+OpenAI API互換LLMサーバーが必要です。
 
 ## セットアップ
 
@@ -112,6 +107,9 @@ npm start
 | `!speakers` | VoiceVoxスピーカー一覧を表示 |
 | `!setSpeaker <ID>` | スピーカーをID番号で切り替え |
 | `!nc` | No-Context Modeの切り替え（履歴なしで応答） |
+|`!history`|履歴を表示|
+|`!clear`|履歴を消去|
+|`!system`|システムプロンプトを編集|
 | `.<text>` | テキストで会話 |
 
 ### No-Context Mode

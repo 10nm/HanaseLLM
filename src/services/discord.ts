@@ -20,6 +20,9 @@ import {
   createUserMessage,
   createModelMessage,
   pushAndSave,
+  getMessages,
+  clearHistory,
+  saveHistory,
 } from './history.js';
 import { formatSpeakers } from './tts.js';
 
@@ -29,7 +32,10 @@ import { formatSpeakers } from './tts.js';
 
 interface Services {
   stt: { transcribe: (buffer: Buffer) => Promise<any> };
-  llm: { generate: (message: string, history: ConversationHistory) => Promise<any> };
+  llm: { 
+    generate: (message: string, history: ConversationHistory, systemPrompt?: string) => Promise<any>;
+    setSystemPrompt: (prompt: string) => void;
+  };
   tts: {
     synthesize: (text: string) => Promise<any>;
     getSpeakers: () => Promise<any>;
@@ -98,7 +104,8 @@ const handleConversation = async (
   config: Config,
   services: Services,
   history: ConversationHistory,
-  noContextMode: boolean
+  noContextMode: boolean,
+  systemPrompt: string
 ): Promise<ConversationHistory> => {
   let userMessage = '';
   let updatedHistory = history;
@@ -144,7 +151,7 @@ const handleConversation = async (
 
     // LLMで応答生成 (no-context modeの場合は空の履歴を使用)
     const historyForLLM = noContextMode ? { messages: [] } : updatedHistory;
-    const llmResult = await services.llm.generate(userMessage, historyForLLM);
+    const llmResult = await services.llm.generate(userMessage, historyForLLM, systemPrompt);
 
     if (!llmResult.success) {
       await sendMessage(message.channel, `❌ LLMエラー: ${llmResult.error.message}`);
@@ -167,7 +174,8 @@ const handleConversation = async (
     // 応答が適切な長さの場合のみ音声合成
     const botName = config.llmProvider === 'gemini' ? 'Gemini' : 'Local LLM';
     const contextIndicator = noContextMode ? ' [NC]' : '';
-    if (responseText.length > 0 && responseText.length <= 800) {
+    const maxLength = config.maxVoiceResponseLength || 300;
+    if (responseText.length > 0 && responseText.length <= maxLength) {
       await sendMessage(
         message.channel,
         `💬 **${botName}${contextIndicator}**: ${responseText}\n⏱️ LLM処理時間: ${llmResult.value.processingTime}ms`
@@ -208,14 +216,22 @@ const setupVoiceReceiver = (
   services: Services,
   getHistory: () => ConversationHistory,
   setHistory: (history: ConversationHistory) => void,
-  getNoContextMode: () => boolean
+  getNoContextMode: () => boolean,
+  getSystemPrompt: () => string
 ) => {
   const receiver = connection.receiver;
+
+  const activeStreams = new Map<string, ReturnType<typeof receiver.subscribe>>();
 
   receiver.speaking.on('start', (userId) => {
     const member = message.guild?.members.cache.get(userId);
     const user = member?.user;
     if (!user || user.bot) return;
+
+    if (activeStreams.has(userId)) {
+      console.log(`Already processing audio from ${user.username}, skipping`);
+      return;
+    }
 
     const audioStream = receiver.subscribe(userId, {
       end: {
@@ -224,15 +240,20 @@ const setupVoiceReceiver = (
       },
     });
 
+    activeStreams.set(userId, audioStream);
+
     const displayName = member?.displayName || user.username;
     console.log(`Started receiving audio from ${displayName}`);
 
     processVoiceStream(audioStream, config)
       .then(async (wavBuffer) => {
+        activeStreams.delete(userId);
+
         if (!wavBuffer) return;
 
         const history = getHistory();
         const noContextMode = getNoContextMode();
+        const currentSystemPrompt = getSystemPrompt();
         const newHistory = await handleConversation(
           wavBuffer,
           null,
@@ -242,11 +263,13 @@ const setupVoiceReceiver = (
           config,
           services,
           history,
-          noContextMode
+          noContextMode,
+          currentSystemPrompt
         );
         setHistory(newHistory);
       })
       .catch((error) => {
+        activeStreams.delete(userId);
         console.error('Voice processing error:', error);
       });
   });
@@ -264,12 +287,14 @@ export const initDiscordBot = (
   let currentHistory = initialHistory;
   let activeConnection: ReturnType<typeof joinVoiceChannel> | null = null;
   let noContextMode = false;
+  let systemPrompt = 'ユーザーに対して適切に応答してください。';
 
   const getHistory = () => currentHistory;
   const setHistory = (history: ConversationHistory) => {
     currentHistory = history;
   };
   const getNoContextMode = () => noContextMode;
+  const getSystemPrompt = () => systemPrompt;
 
   client.on(Events.ClientReady, () => {
     console.log(`✅ Logged in as ${client.user?.tag}`);
@@ -309,7 +334,8 @@ export const initDiscordBot = (
           services,
           getHistory,
           setHistory,
-          getNoContextMode
+          getNoContextMode,
+          getSystemPrompt
         );
       } catch (error) {
         console.error('Connection error:', error);
@@ -364,6 +390,47 @@ export const initDiscordBot = (
       return;
     }
 
+    // !history - 会話履歴を表示
+    if (content === '!history') {
+      const messages = getMessages(currentHistory);
+      if (messages.length === 0) {
+        await message.reply('📝 会話履歴は空です');
+        return;
+      }
+      const historyText = messages.slice(-10).map((m) => {
+        const role = m.role === 'user' ? '👤 User' : '🤖 Model';
+        const content = m.parts.length > 100 ? m.parts.substring(0, 100) + '...' : m.parts;
+        return `${role}: ${content}`;
+      }).join('\n');
+      await message.reply(`📝 会話履歴 (最新10件):\n\`\`\`\n${historyText}\n\`\`\``);
+      return;
+    }
+
+    // !clear - 会話履歴をリセット
+    if (content === '!clear') {
+      currentHistory = clearHistory();
+      const saveResult = await saveHistory(config.tempDir, currentHistory);
+      if (saveResult.success) {
+        await message.reply('🗑️ 会話履歴をリセットしました');
+      } else {
+        await message.reply('❌ 履歴のリセットに失敗しました');
+      }
+      return;
+    }
+
+    // !system <prompt> - システムプロンプトを変更
+    if (content.startsWith('!system ')) {
+      const newSystemPrompt = content.slice(8).trim();
+      if (!newSystemPrompt) {
+        await message.reply('❌ プロンプトを入力してください (例: !system あなたはhelpfulなアシスタントです)');
+        return;
+      }
+      systemPrompt = newSystemPrompt;
+      services.llm.setSystemPrompt(newSystemPrompt);
+      await message.reply(`✅ システムプロンプトを更新しました:\n\`\`\`\n${newSystemPrompt}\n\`\`\``);
+      return;
+    }
+
     // .<text> - テキスト入力
     if (content.startsWith('.') && content.length > 1) {
       if (!activeConnection) {
@@ -383,7 +450,8 @@ export const initDiscordBot = (
         config,
         services,
         currentHistory,
-        noContextMode
+        noContextMode,
+        systemPrompt
       );
       setHistory(newHistory);
       return;

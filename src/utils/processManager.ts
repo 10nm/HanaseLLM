@@ -32,42 +32,25 @@ export class LocalLLMProcessManager {
     console.log(`Starting local LLM API server...`);
 
     // venvのセットアップ
-    const venvPath = join(this.projectRoot, '.venv');
-    const pythonPath = join(venvPath, 'bin', 'python');
-    const pipPath = join(venvPath, 'bin', 'pip');
+    const venvPath = join(this.projectRoot, 'venv');
 
     if (!existsSync(venvPath)) {
-      console.log('Creating virtual environment (.venv)...');
+      console.log('Creating virtual environment (venv)...');
       try {
-        execSync('python3 -m venv .venv', { cwd: this.projectRoot, stdio: 'inherit' });
+        execSync('python3 -m venv venv', { cwd: this.projectRoot, stdio: 'inherit' });
       } catch (error) {
         throw new Error(`Failed to create venv: ${error}`);
       }
     }
 
-    // 依存関係のインストール（簡易チェック: pip listで確認する代わりに、毎回インストールコマンドを走らせる（既に入っていれば早いはず））
-    // ただし、起動のたびに走ると遅いので、venv作成時または明示的なフラグがある時だけにしたいが、
-    // 要件は「必要パッケージはあらかじめインストールしてください」なので、
-    // ここではvenvが存在しても念のためインストールコマンドを走らせるか、あるいはマーカーファイルを確認するか。
-    // ユーザー体験を損なわない範囲で、インストールを試みる。
-    console.log('Ensuring dependencies are installed...');
-    try {
-      execSync(`${pipPath} install torch transformers peft fastapi uvicorn`, {
-        cwd: this.projectRoot,
-        stdio: 'inherit',
-      });
-    } catch (error) {
-      throw new Error(`Failed to install dependencies: ${error}`);
-    }
-
     console.log(`Launching LLM API server from: ${this.scriptPath}`);
 
     return new Promise((resolve, reject) => {
-      // venvのPythonを使ってスクリプトを起動
-      this.process = spawn(pythonPath, [this.scriptPath], {
+      // uv run python3 を使用してスクリプトを起動
+      this.process = spawn('uv', ['run', 'python3', this.scriptPath], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
-        cwd: this.projectRoot, // カレントディレクトリをプロジェクトルートに設定
+        cwd: this.projectRoot,
       });
 
       if (!this.process.stdout || !this.process.stderr) {
